@@ -9,11 +9,6 @@ app = Flask(__name__)
 UPLOAD_FOLDER = '/app/audios'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# 🔥 COQUI TTS
-print("Carregando Coqui TTS...")
-tts = TTS(model_name="tts_models/pt/cv/glow-tts", progress_bar=True, gpu=False)
-print("Coqui TTS pronto!")
-
 # Idiomas
 LANGUAGE_MAP = {
     "pt": "pt",
@@ -33,7 +28,7 @@ def health():
         "status": "online"
     })
 
-# 🔥 TTS
+# 🔥 TTS (CORRIGIDO - SEM CRASH NO START)
 @app.route('/tts', methods=['POST'])
 def generate_tts():
     try:
@@ -50,10 +45,13 @@ def generate_tts():
 
         language = LANGUAGE_MAP.get(lang, "pt")
 
+        print(f"Gerando áudio: {text[:50]}...")
+
+        # 🔥 COQUI CARREGA AQUI (NÃO NO START)
+        tts = TTS(model_name="tts_models/pt/cv/glow-tts", gpu=False)
+
         filename = f"audio_{int(time.time() * 1000)}.wav"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
-
-        print(f"Gerando áudio: {text[:50]}...")
 
         tts.tts_to_file(
             text=text,
@@ -86,7 +84,7 @@ def generate_tts():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 🔥 AUDIO SERVE
+# 🔥 SERVE AUDIO
 @app.route('/audio/<filename>', methods=['GET'])
 def get_audio(filename):
     filepath = os.path.join(UPLOAD_FOLDER, filename)
@@ -116,7 +114,7 @@ def cleanup():
 threading.Thread(target=cleanup, daemon=True).start()
 
 
-# 🔥 START (CORRIGIDO PRA RAILWAY)
+# 🔥 START SERVER (CORRIGIDO RAILWAY)
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 3000))
     app.run(
