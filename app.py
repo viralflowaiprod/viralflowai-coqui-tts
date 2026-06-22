@@ -12,7 +12,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Inicializa Coqui TTS
 print("Carregando Coqui TTS...")
-tts = TTS(model_name="tts_models/pt/cv/tacotron2-DDC", progress_bar=True, gpu=False)
+tts = TTS(model_name="tts_models/multilingual/bark", progress_bar=True, gpu=False)
 print("Coqui TTS pronto!")
 
 # Map de idiomas
