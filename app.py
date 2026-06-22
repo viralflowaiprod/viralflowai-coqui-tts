@@ -19,7 +19,7 @@ LANGUAGE_MAP = {
     "fr": "fr"
 }
 
-# 🔥 HEALTH CHECK
+# HEALTH CHECK
 @app.route('/', methods=['GET'])
 def health():
     return jsonify({
@@ -28,7 +28,7 @@ def health():
         "status": "online"
     })
 
-# 🔥 TTS (CORRIGIDO - SEM CRASH NO START)
+# TTS
 @app.route('/tts', methods=['POST'])
 def generate_tts():
     try:
@@ -47,19 +47,16 @@ def generate_tts():
 
         print(f"Gerando áudio: {text[:50]}...")
 
-print(f"Gerando áudio: {text[:50]}...")
+        # Modelo português disponível no Coqui
+        tts = TTS(model_name="tts_models/pt/cv/vits", gpu=False)
 
-# 🔥 COQUI CARREGA AQUI (NÃO NO START)
-tts = TTS(model_name="tts_models/pt/cv/vits", gpu=False)
+        filename = f"audio_{int(time.time() * 1000)}.wav"
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-filename = f"audio_{int(time.time() * 1000)}.wav"
-filepath = os.path.join(UPLOAD_FOLDER, filename)
-
-tts.tts_to_file(
-    text=text,
-    file_path=filepath,
-    language=language
-)
+        tts.tts_to_file(
+            text=text,
+            file_path=filepath
+        )
 
         if not os.path.exists(filepath):
             return jsonify({"success": False, "error": "falha ao gerar áudio"}), 500
@@ -67,7 +64,7 @@ tts.tts_to_file(
         mp3_filename = filename.replace(".wav", ".mp3")
         mp3_filepath = os.path.join(UPLOAD_FOLDER, mp3_filename)
 
-        os.system(f"ffmpeg -i {filepath} -q:a 5 {mp3_filepath} -y")
+        os.system(f'ffmpeg -i "{filepath}" -q:a 5 "{mp3_filepath}" -y')
 
         base_url = os.environ.get(
             "BASE_URL",
@@ -86,7 +83,7 @@ tts.tts_to_file(
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-# 🔥 SERVE AUDIO
+# SERVE AUDIO
 @app.route('/audio/<filename>', methods=['GET'])
 def get_audio(filename):
     filepath = os.path.join(UPLOAD_FOLDER, filename)
@@ -94,14 +91,14 @@ def get_audio(filename):
     if not os.path.exists(filepath):
         return jsonify({"error": "file not found"}), 404
 
-    return send_file(filepath, mimetype='audio/mpeg')
+    mime = 'audio/mpeg' if filename.endswith('.mp3') else 'audio/wav'
+    return send_file(filepath, mimetype=mime)
 
 
-# 🔥 CLEANUP
+# CLEANUP
 def cleanup():
     while True:
         try:
-            now = time.time()
             for f in os.listdir(UPLOAD_FOLDER):
                 path = os.path.join(UPLOAD_FOLDER, f)
                 if os.path.isfile(path):
@@ -116,7 +113,6 @@ def cleanup():
 threading.Thread(target=cleanup, daemon=True).start()
 
 
-# 🔥 START SERVER (CORRIGIDO RAILWAY)
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 3000))
     app.run(
