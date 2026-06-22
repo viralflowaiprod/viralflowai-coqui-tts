@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_file
 from TTS.api import TTS
 import os
-import uuid
 import time
 import threading
 
@@ -10,7 +9,7 @@ app = Flask(__name__)
 UPLOAD_FOLDER = '/app/audios'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# 🔥 Coqui TTS
+# 🔥 COQUI TTS
 print("Carregando Coqui TTS...")
 tts = TTS(model_name="tts_models/pt/cv/glow-tts", progress_bar=True, gpu=False)
 print("Coqui TTS pronto!")
@@ -21,15 +20,8 @@ LANGUAGE_MAP = {
     "pt-BR": "pt",
     "pt-f": "pt",
     "en": "en",
-    "en-US": "en",
     "es": "es",
-    "es-ES": "es",
-    "fr": "fr",
-    "fr-FR": "fr",
-    "de": "de",
-    "de-DE": "de",
-    "it": "it",
-    "it-IT": "it"
+    "fr": "fr"
 }
 
 # 🔥 HEALTH CHECK
@@ -41,7 +33,7 @@ def health():
         "status": "online"
     })
 
-# 🔥 TTS ENDPOINT
+# 🔥 TTS
 @app.route('/tts', methods=['POST'])
 def generate_tts():
     try:
@@ -50,7 +42,6 @@ def generate_tts():
         text = data.get('text', '').strip()
         lang = data.get('lang', 'pt')
 
-        # remove "=" do n8n
         if text.startswith('='):
             text = text[1:].strip()
 
@@ -64,19 +55,16 @@ def generate_tts():
 
         print(f"Gerando áudio: {text[:50]}...")
 
-        # gera áudio
         tts.tts_to_file(
             text=text,
             file_path=filepath,
-            language=language,
-            verbose=False
+            language=language
         )
 
         if not os.path.exists(filepath):
-            return jsonify({"success": False, "error": "Falha ao gerar áudio"}), 500
+            return jsonify({"success": False, "error": "falha ao gerar áudio"}), 500
 
-        # converte mp3
-        mp3_filename = filename.replace('.wav', '.mp3')
+        mp3_filename = filename.replace(".wav", ".mp3")
         mp3_filepath = os.path.join(UPLOAD_FOLDER, mp3_filename)
 
         os.system(f"ffmpeg -i {filepath} -q:a 5 {mp3_filepath} -y")
@@ -86,58 +74,54 @@ def generate_tts():
             "http://localhost:3000"
         )
 
-        if os.path.exists(mp3_filepath):
-            os.remove(filepath)
-            return jsonify({
-                "success": True,
-                "audioUrl": f"{base_url}/audio/{mp3_filename}"
-            })
+        final_file = mp3_filename if os.path.exists(mp3_filepath) else filename
 
         return jsonify({
             "success": True,
-            "audioUrl": f"{base_url}/audio/{filename}"
+            "audioUrl": f"{base_url}/audio/{final_file}"
         })
 
     except Exception as e:
         print(f"Erro: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-# 🔥 SERVIR ÁUDIO
+
+# 🔥 AUDIO SERVE
 @app.route('/audio/<filename>', methods=['GET'])
 def get_audio(filename):
-    try:
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
 
-        if not os.path.exists(filepath):
-            return jsonify({"error": "file not found"}), 404
+    if not os.path.exists(filepath):
+        return jsonify({"error": "file not found"}), 404
 
-        return send_file(filepath, mimetype='audio/mpeg')
+    return send_file(filepath, mimetype='audio/mpeg')
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
-# 🔥 LIMPEZA AUTOMÁTICA
-def cleanup_old_files():
+# 🔥 CLEANUP
+def cleanup():
     while True:
         try:
             now = time.time()
-
-            for filename in os.listdir(UPLOAD_FOLDER):
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-
-                if os.path.isfile(filepath):
-                    if now - os.path.getmtime(filepath) > 30 * 60:
-                        os.remove(filepath)
-                        print(f"Deletado: {filename}")
-
+            for f in os.listdir(UPLOAD_FOLDER):
+                path = os.path.join(UPLOAD_FOLDER, f)
+                if os.path.isfile(path):
+                    if time.time() - os.path.getmtime(path) > 1800:
+                        os.remove(path)
         except Exception as e:
-            print(f"Erro cleanup: {e}")
+            print("cleanup error:", e)
 
         time.sleep(300)
 
-threading.Thread(target=cleanup_old_files, daemon=True).start()
 
-# 🔥 START SERVER (CORRIGIDO PRA RAILWAY)
+threading.Thread(target=cleanup, daemon=True).start()
+
+
+# 🔥 START (CORRIGIDO PRA RAILWAY)
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 3000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=False,
+        use_reloader=False
+    )
