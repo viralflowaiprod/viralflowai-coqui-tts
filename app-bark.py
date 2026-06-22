@@ -1,21 +1,20 @@
 from flask import Flask, request, jsonify, send_file
-from TTS.api import TTS
+from bark import SAMPLE_RATE, generate_audio, preload_models
 import os
-import uuid
-from datetime import datetime
-import threading
 import time
+import threading
+from scipy.io import wavfile
+import numpy as np
 
 app = Flask(__name__)
 UPLOAD_FOLDER = '/app/audios'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Inicializa Coqui TTS
-print("Carregando Coqui TTS...")
-tts = TTS(model_name="tts_models/multilingual/bark", progress_bar=True, gpu=False)
-print("Coqui TTS pronto!")
+# Precarrega Bark
+print("Carregando Bark TTS...")
+preload_models()
+print("Bark TTS pronto!")
 
-# Map de idiomas
 LANGUAGE_MAP = {
     "pt": "pt",
     "pt-BR": "pt",
@@ -32,9 +31,18 @@ LANGUAGE_MAP = {
     "it-IT": "it"
 }
 
+VOICE_MAP = {
+    "pt": "v2/pt_BR_5",
+    "en": "v2/en_speaker_6",
+    "es": "v2/es_speaker_6",
+    "fr": "v2/fr_speaker_5",
+    "de": "v2/de_speaker_6",
+    "it": "v2/it_speaker_6"
+}
+
 @app.route('/', methods=['GET'])
 def health():
-    return jsonify({"success": True, "service": "Coqui TTS", "status": "online"})
+    return jsonify({"success": True, "service": "Bark TTS", "status": "online"})
 
 @app.route('/tts', methods=['POST'])
 def generate_tts():
@@ -52,25 +60,24 @@ def generate_tts():
         
         # Map idioma
         language = LANGUAGE_MAP.get(lang, "pt")
+        voice = VOICE_MAP.get(language, VOICE_MAP["pt"])
         
         # Gera arquivo único
         filename = f"audio_{int(time.time() * 1000)}.wav"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         
-        print(f"Gerando áudio: {text[:50]}... em {language}")
+        print(f"Gerando áudio: {text[:50]}... em {language} com voz {voice}")
         
-        # Gera TTS
-        tts.tts_to_file(
-            text=text,
-            file_path=filepath,
-            language=language,
-            verbose=False
-        )
+        # Gera áudio com Bark
+        audio_array = generate_audio(text, history_prompt=voice)
+        
+        # Salva WAV
+        wavfile.write(filepath, SAMPLE_RATE, audio_array)
         
         if not os.path.exists(filepath):
             return jsonify({"success": False, "error": "Falha ao gerar áudio"}), 500
         
-        # Converte WAV pra MP3 (opcional, but better)
+        # Converte pra MP3
         mp3_filename = filename.replace('.wav', '.mp3')
         mp3_filepath = os.path.join(UPLOAD_FOLDER, mp3_filename)
         
@@ -80,12 +87,12 @@ def generate_tts():
             os.remove(filepath)
             return jsonify({
                 "success": True,
-                "audioUrl": f"http://localhost:3000/audio/{mp3_filename}"
+                "audioUrl": f"https://viralflowai-coqui-tts-production.up.railway.app/audio/{mp3_filename}"
             })
         
         return jsonify({
             "success": True,
-            "audioUrl": f"http://localhost:3000/audio/{filename}"
+            "audioUrl": f"https://viralflowai-coqui-tts-production.up.railway.app/audio/{filename}"
         })
     
     except Exception as e:
@@ -116,7 +123,7 @@ def cleanup_old_files():
         except Exception as e:
             print(f"Erro cleanup: {e}")
         
-        time.sleep(5 * 60)  # Checa a cada 5 minutos
+        time.sleep(5 * 60)
 
 cleanup_thread = threading.Thread(target=cleanup_old_files, daemon=True)
 cleanup_thread.start()
