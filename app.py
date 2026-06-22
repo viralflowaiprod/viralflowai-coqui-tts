@@ -47,17 +47,19 @@ def generate_tts():
 
         print(f"Gerando áudio: {text[:50]}...")
 
-        # 🔥 COQUI CARREGA AQUI (NÃO NO START)
-        tts = TTS(model_name="tts_models/pt/cv/glow-tts", gpu=False)
+print(f"Gerando áudio: {text[:50]}...")
 
-        filename = f"audio_{int(time.time() * 1000)}.wav"
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
+# 🔥 COQUI CARREGA AQUI (NÃO NO START)
+tts = TTS(model_name="tts_models/pt/cv/vits", gpu=False)
 
-        tts.tts_to_file(
-            text=text,
-            file_path=filepath,
-            language=language
-        )
+filename = f"audio_{int(time.time() * 1000)}.wav"
+filepath = os.path.join(UPLOAD_FOLDER, filename)
+
+tts.tts_to_file(
+    text=text,
+    file_path=filepath,
+    language=language
+)
 
         if not os.path.exists(filepath):
             return jsonify({"success": False, "error": "falha ao gerar áudio"}), 500
